@@ -1,0 +1,19 @@
+# mac
+.DS_Store
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# virtual envs
+venv/
+.venv/
+
+# data / outputs
+test-signals/
+data/
+datasets/
+outputs/
+runs/
+checkpoints/
