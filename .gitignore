@@ -17,3 +17,10 @@ datasets/
 outputs/
 runs/
 checkpoints/
+
+# Rust
+rust-signals/target/
+Cargo.lock
+*.so
+*.dylib
+*.dll
