@@ -1,0 +1,12 @@
+[package]
+name = "rust-signals"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rust_signals"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+hound = "3.5"
