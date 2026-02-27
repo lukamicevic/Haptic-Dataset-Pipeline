@@ -1,4 +1,6 @@
 use hound::{WavReader, WavWriter, WavSpec};
+use std::fs;
+use std::io::{BufWriter, Cursor};
 use std::path::Path;
 
 pub struct AudioData {
@@ -7,7 +9,13 @@ pub struct AudioData {
 }
 
 pub fn load_wav<P: AsRef<Path>>(path: P) -> Result<AudioData, Box<dyn std::error::Error>> {
-    let mut reader = WavReader::open(path)?;
+    // Read entire file in ONE syscall
+    let bytes = fs::read(path.as_ref())?;
+
+    // Parse from memory - no more disk I/O
+    let cursor = Cursor::new(bytes);
+    let mut reader = WavReader::new(cursor)?;
+
     let samples: Vec<i16> = reader
         .samples::<i16>()
         .collect::<Result<Vec<_>, _>>()?;
@@ -28,11 +36,17 @@ pub fn save_wav<P: AsRef<Path>>(
         sample_format: hound::SampleFormat::Int,
     };
 
-    let mut writer = WavWriter::create(path, spec)?;
+    // BufWriter batches small writes into 8KB chunks
+    let file = fs::File::create(path.as_ref())?;
+    let buf_writer = BufWriter::new(file);
+    let mut writer = WavWriter::new(buf_writer, spec)?;
+
+    // Bulk writer - no Result check per sample
+    let mut i16_writer = writer.get_i16_writer(samples.len() as u32);
     for &sample in samples {
-        writer.write_sample(sample)?;
+        i16_writer.write_sample(sample);
     }
-    writer.finalize()?;
+    i16_writer.flush()?;
 
     Ok(())
 }

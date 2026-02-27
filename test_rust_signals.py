@@ -16,8 +16,8 @@ print("=" * 60)
 print("Testing Rust Signal Augmentation Functions")
 print("=" * 60)
 
-# Test 1: Mix operation
-print("\n1. Testing MIX operation...")
+# Test 1: Mix operation (with normalization)
+print("\n1. Testing MIX operation (with normalization)...")
 rust_signals.combine_signals_from_files(
     base_path=BASE_PATH,
     add_path=ADD_PATH,
@@ -25,10 +25,11 @@ rust_signals.combine_signals_from_files(
     position=50000,
     operation="mix",
     mix_balance=0.5,
-    add_offset=0
+    add_offset=0,
+    normalize=True
 )
 print("   ✅ Mix operation completed!")
-print(f"   Output: {OUTPUT_DIR}/rust_test_mix.wav")
+print(f"   Output: {OUTPUT_DIR}/rust_test_mix.wav (normalized)")
 
 # Test 2: Insert operation
 print("\n2. Testing INSERT operation...")
@@ -43,8 +44,9 @@ rust_signals.combine_signals_from_files(
 print("   ✅ Insert operation completed!")
 print(f"   Output: {OUTPUT_DIR}/rust_test_insert.wav")
 
-# Test 3: Unmix operation
+# Test 3: Unmix operation (Note: unmix won't perfectly recover normalized signal)
 print("\n3. Testing UNMIX operation...")
+print("   Note: Normalization changes the signal, so unmix won't perfectly recover original")
 rust_signals.separate_signals_from_files(
     combined_path=os.path.join(OUTPUT_DIR, "rust_test_mix.wav"),
     signal_path=ADD_PATH,
@@ -68,14 +70,38 @@ rust_signals.separate_signals_from_files(
 print("   ✅ Remove operation completed!")
 print(f"   Output: {OUTPUT_DIR}/rust_test_remove.wav")
 
-# Test 5: Reversibility test (Mix -> Unmix should recover original)
-print("\n5. Testing reversibility (Mix -> Unmix)...")
+# Test 5: Reversibility test (Mix without normalization -> Unmix should recover original)
+print("\n5. Testing reversibility (Mix without normalize -> Unmix)...")
+print("   First, creating a non-normalized mix for reversibility test...")
+
+# Create a non-normalized mix for testing reversibility
+rust_signals.combine_signals_from_files(
+    base_path=BASE_PATH,
+    add_path=ADD_PATH,
+    output_path=os.path.join(OUTPUT_DIR, "rust_test_mix_no_norm.wav"),
+    position=50000,
+    operation="mix",
+    mix_balance=0.5,
+    add_offset=0,
+    normalize=False  # No normalization for reversibility
+)
+
+# Unmix it
+rust_signals.separate_signals_from_files(
+    combined_path=os.path.join(OUTPUT_DIR, "rust_test_mix_no_norm.wav"),
+    signal_path=ADD_PATH,
+    output_path=os.path.join(OUTPUT_DIR, "rust_test_unmix_recovered.wav"),
+    position=50000,
+    operation="unmix",
+    mix_balance=0.5
+)
+
 try:
     from wav_IO import load_wav
     import numpy as np
 
     original, _ = load_wav(BASE_PATH)
-    recovered, _ = load_wav(os.path.join(OUTPUT_DIR, "rust_test_unmix.wav"))
+    recovered, _ = load_wav(os.path.join(OUTPUT_DIR, "rust_test_unmix_recovered.wav"))
 
     # Mix operation may pad the result, so trim to original length for comparison
     min_len = min(len(original), len(recovered))

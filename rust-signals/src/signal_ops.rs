@@ -15,7 +15,7 @@ pub fn combine_signals(
             result.extend_from_slice(&base[position..]);
             result
         }
-        CombineOp::Mix { mix_balance, add_offset } => {
+        CombineOp::Mix { mix_balance, add_offset, normalize } => {
             let add_slice = &add[add_offset..];
             let mut result = base.to_vec();
             let end = position + add_slice.len();
@@ -34,6 +34,21 @@ pub fn combine_signals(
                     weight_base * base_sample as f32 +
                     weight_add * add_sample as f32
                 ) as i16;
+            }
+
+            // Normalize to full dynamic range if requested
+            if normalize {
+                let max_abs = result.iter()
+                    .map(|&x| x.abs())
+                    .max()
+                    .unwrap_or(1);
+
+                if max_abs > 0 {
+                    let scale = 32767.0 / max_abs as f32;
+                    for sample in result.iter_mut() {
+                        *sample = (*sample as f32 * scale) as i16;
+                    }
+                }
             }
 
             result

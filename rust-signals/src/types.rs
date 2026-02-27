@@ -7,6 +7,7 @@ pub enum CombineOp {
     Mix {
         mix_balance: f32,
         add_offset: usize,
+        normalize: bool,
     },
 }
 
