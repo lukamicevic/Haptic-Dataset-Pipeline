@@ -6,6 +6,7 @@ use numpy::{PyArray1, PyReadonlyArray1};
 mod wav_io;
 mod signal_ops;
 mod types;
+mod batch_ops;
 
 use types::{CombineOp, SeparateOp};
 
@@ -98,7 +99,7 @@ fn remove_signal<'py>(
 }
 
 // =============================================================================
-// File-based functions (convenience API, uses hound for WAV I/O)
+// File-based functions (convenience API)
 // =============================================================================
 
 /// Combine two WAV files using specified operation
@@ -178,6 +179,79 @@ fn separate_signals_from_files(
 }
 
 // =============================================================================
+// Batch Processing Functions (Rayon parallel)
+// =============================================================================
+
+/// Batch process multiple file pairs with mix operation in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, position, mix_balance=0.5, add_offset=0, normalize=false, num_threads=None))]
+fn batch_mix_files(
+    file_pairs: Vec<(String, String, String)>,
+    position: usize,
+    mix_balance: f32,
+    add_offset: usize,
+    normalize: bool,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let op = CombineOp::Mix { mix_balance, add_offset, normalize };
+    let results = batch_ops::batch_combine(&file_pairs, position, op, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch process multiple file pairs with insert operation in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, position, add_offset=0, num_threads=None))]
+fn batch_insert_files(
+    file_pairs: Vec<(String, String, String)>,
+    position: usize,
+    add_offset: usize,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let op = CombineOp::Insert { add_offset };
+    let results = batch_ops::batch_combine(&file_pairs, position, op, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch process multiple unmix operations in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, position, mix_balance=0.5, num_threads=None))]
+fn batch_unmix_files(
+    file_pairs: Vec<(String, String, String)>,
+    position: usize,
+    mix_balance: f32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let op = SeparateOp::Unmix { mix_balance };
+    let results = batch_ops::batch_separate(&file_pairs, position, op, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch process multiple remove operations in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, position, num_threads=None))]
+fn batch_remove_files(
+    file_pairs: Vec<(String, String, String)>,
+    position: usize,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let op = SeparateOp::Remove;
+    let results = batch_ops::batch_separate(&file_pairs, position, op, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+// =============================================================================
 // Python module registration
 // =============================================================================
 
@@ -191,5 +265,10 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;
     m.add_function(wrap_pyfunction!(separate_signals_from_files, m)?)?;
+    // Batch processing functions (Rayon parallel)
+    m.add_function(wrap_pyfunction!(batch_mix_files, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_insert_files, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_unmix_files, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_remove_files, m)?)?;
     Ok(())
 }
