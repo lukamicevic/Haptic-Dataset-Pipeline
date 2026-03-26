@@ -98,6 +98,67 @@ fn remove_signal<'py>(
     Ok(PyArray1::from_vec_bound(py, result))
 }
 
+/// Replace samples in base signal with add signal (array-based)
+#[pyfunction]
+#[pyo3(signature = (base, add, position, add_offset=0))]
+fn replace_signal<'py>(
+    py: Python<'py>,
+    base: PyReadonlyArray1<'py, i16>,
+    add: PyReadonlyArray1<'py, i16>,
+    position: usize,
+    add_offset: usize,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let base_slice = base.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read base array: {}", e)))?;
+    let add_slice = add.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read add array: {}", e)))?;
+
+    let op = CombineOp::Replace { add_offset };
+    let result = signal_ops::combine_signals(base_slice, add_slice, position, op);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
+
+// =============================================================================
+// WORK IN PROGRESS - Inpainting and Super-resolution
+// These functions use simple interpolation which doesn't produce meaningful
+// results for audio/haptic signals. Proper implementation requires ML-based
+// approaches (e.g., latent diffusion models like AUDIT).
+// =============================================================================
+
+// /// Inpaint signal by filling gaps (zeros) with interpolation
+// #[pyfunction]
+// #[pyo3(signature = (signal, method="linear"))]
+// fn inpaint_signal<'py>(
+//     py: Python<'py>,
+//     signal: PyReadonlyArray1<'py, i16>,
+//     method: &str,
+// ) -> PyResult<Bound<'py, PyArray1<i16>>> {
+//     let signal_slice = signal.as_slice()
+//         .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+//
+//     let result = signal_ops::inpaint_signal(signal_slice, method);
+//
+//     Ok(PyArray1::from_vec_bound(py, result))
+// }
+
+// /// Supersample signal by integer factor
+// #[pyfunction]
+// #[pyo3(signature = (signal, factor, method="linear"))]
+// fn supersample_signal<'py>(
+//     py: Python<'py>,
+//     signal: PyReadonlyArray1<'py, i16>,
+//     factor: usize,
+//     method: &str,
+// ) -> PyResult<Bound<'py, PyArray1<i16>>> {
+//     let signal_slice = signal.as_slice()
+//         .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+//
+//     let result = signal_ops::supersample_signal(signal_slice, factor, method);
+//
+//     Ok(PyArray1::from_vec_bound(py, result))
+// }
+
 // =============================================================================
 // File-based functions (convenience API)
 // =============================================================================
@@ -123,8 +184,9 @@ fn combine_signals_from_files(
     let op = match operation {
         "insert" => CombineOp::Insert { add_offset },
         "mix" => CombineOp::Mix { mix_balance, add_offset, normalize },
+        "replace" => CombineOp::Replace { add_offset },
         _ => return Err(PyValueError::new_err(
-            format!("Unknown operation: {}. Use 'insert' or 'mix'", operation)
+            format!("Unknown operation: {}. Use 'insert', 'mix', or 'replace'", operation)
         )),
     };
 
@@ -251,6 +313,23 @@ fn batch_remove_files(
         .collect())
 }
 
+/// Batch process multiple file pairs with replace operation in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, position, add_offset=0, num_threads=None))]
+fn batch_replace_files(
+    file_pairs: Vec<(String, String, String)>,
+    position: usize,
+    add_offset: usize,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let op = CombineOp::Replace { add_offset };
+    let results = batch_ops::batch_combine(&file_pairs, position, op, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
 // =============================================================================
 // Python module registration
 // =============================================================================
@@ -260,14 +339,17 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Array-based functions (high performance)
     m.add_function(wrap_pyfunction!(mix_signals, m)?)?;
     m.add_function(wrap_pyfunction!(insert_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(replace_signal, m)?)?;
     m.add_function(wrap_pyfunction!(unmix_signal, m)?)?;
     m.add_function(wrap_pyfunction!(remove_signal, m)?)?;
+    // WIP: inpaint_signal and supersample_signal commented out - need ML-based approach
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;
     m.add_function(wrap_pyfunction!(separate_signals_from_files, m)?)?;
     // Batch processing functions (Rayon parallel)
     m.add_function(wrap_pyfunction!(batch_mix_files, m)?)?;
     m.add_function(wrap_pyfunction!(batch_insert_files, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_replace_files, m)?)?;
     m.add_function(wrap_pyfunction!(batch_unmix_files, m)?)?;
     m.add_function(wrap_pyfunction!(batch_remove_files, m)?)?;
     Ok(())

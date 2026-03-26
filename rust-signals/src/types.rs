@@ -1,7 +1,7 @@
 /// Operations for combining signals
 #[derive(Debug, Clone)]
 pub enum CombineOp {
-    /// Insert signal at position with optional offset
+    /// Insert signal at position with optional offset (expands signal)
     Insert { add_offset: usize },
     /// Mix signals with weighted balance
     Mix {
@@ -9,6 +9,8 @@ pub enum CombineOp {
         add_offset: usize,
         normalize: bool,
     },
+    /// Replace samples at position (overwrites, same length)
+    Replace { add_offset: usize },
 }
 
 /// Operations for separating signals
