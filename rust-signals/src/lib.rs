@@ -120,44 +120,44 @@ fn replace_signal<'py>(
 }
 
 // =============================================================================
-// WORK IN PROGRESS - Inpainting and Super-resolution
-// These functions use simple interpolation which doesn't produce meaningful
-// results for audio/haptic signals. Proper implementation requires ML-based
-// approaches (e.g., latent diffusion models like AUDIT).
+// Training Data Generation - Inpainting and Super-resolution
+// These create degraded versions of signals for AI training pairs
 // =============================================================================
 
-// /// Inpaint signal by filling gaps (zeros) with interpolation
-// #[pyfunction]
-// #[pyo3(signature = (signal, method="linear"))]
-// fn inpaint_signal<'py>(
-//     py: Python<'py>,
-//     signal: PyReadonlyArray1<'py, i16>,
-//     method: &str,
-// ) -> PyResult<Bound<'py, PyArray1<i16>>> {
-//     let signal_slice = signal.as_slice()
-//         .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
-//
-//     let result = signal_ops::inpaint_signal(signal_slice, method);
-//
-//     Ok(PyArray1::from_vec_bound(py, result))
-// }
+/// Mask a portion of signal (for inpainting training data)
+/// If start is None, picks a random position
+/// Returns (masked_signal, actual_start_position)
+#[pyfunction]
+#[pyo3(signature = (signal, length, start=None, mask_value=0))]
+fn mask_signal<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, i16>,
+    length: usize,
+    start: Option<usize>,
+    mask_value: i16,
+) -> PyResult<(Bound<'py, PyArray1<i16>>, usize)> {
+    let signal_slice = signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
 
-// /// Supersample signal by integer factor
-// #[pyfunction]
-// #[pyo3(signature = (signal, factor, method="linear"))]
-// fn supersample_signal<'py>(
-//     py: Python<'py>,
-//     signal: PyReadonlyArray1<'py, i16>,
-//     factor: usize,
-//     method: &str,
-// ) -> PyResult<Bound<'py, PyArray1<i16>>> {
-//     let signal_slice = signal.as_slice()
-//         .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
-//
-//     let result = signal_ops::supersample_signal(signal_slice, factor, method);
-//
-//     Ok(PyArray1::from_vec_bound(py, result))
-// }
+    let (result, actual_start) = signal_ops::mask_signal(signal_slice, start, length, mask_value);
+
+    Ok((PyArray1::from_vec_bound(py, result), actual_start))
+}
+
+/// Downsample signal by factor (for super-resolution training data)
+#[pyfunction]
+fn downsample_signal<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, i16>,
+    factor: usize,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let signal_slice = signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+
+    let result = signal_ops::downsample_signal(signal_slice, factor);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
 
 // =============================================================================
 // File-based functions (convenience API)
@@ -342,7 +342,9 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(replace_signal, m)?)?;
     m.add_function(wrap_pyfunction!(unmix_signal, m)?)?;
     m.add_function(wrap_pyfunction!(remove_signal, m)?)?;
-    // WIP: inpaint_signal and supersample_signal commented out - need ML-based approach
+    // Training data generation (for AI training pairs)
+    m.add_function(wrap_pyfunction!(mask_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(downsample_signal, m)?)?;
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;
     m.add_function(wrap_pyfunction!(separate_signals_from_files, m)?)?;
