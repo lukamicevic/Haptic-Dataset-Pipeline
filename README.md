@@ -1,193 +1,71 @@
 # Haptic Dataset Pipeline
 
-A high-performance data augmentation pipeline for generating synthetic haptic signal datasets for AI training. 
-## Overview
-
-This pipeline provides fast, reversible signal augmentation operations for haptic data:
-- **Mix/Unmix**: Blend signals with weighted balance (reversible)
-- **Insert/Remove**: Concatenate signals at specific positions (reversible)
-
-Available in both **Python** (reference implementation) and **Rust** (production-ready, 10-100x faster).
-
-## Quick Start
-
-### Option 1: Rust (Recommended for Performance)
+## Setup
 
 ```bash
-# 1. Install Rust (if needed)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-
-# 2. Install maturin
+# Install maturin
 pip install maturin
 
-# 3. Build Rust module
+# Build and install
 cd rust-signals
 maturin develop --release
 cd ..
-
-# 4. Use in Python
-python
->>> import rust_signals
->>> rust_signals.combine_signals_from_files(
-...     base_path="test-signals/inputSignals/1-19840-A-36.wav",
-...     add_path="test-signals/inputSignals/1-9887-A-49.wav",
-...     output_path="test-signals/outputSignals/output.wav",
-...     position=50000,
-...     operation="mix",
-...     mix_balance=0.5
-... )
 ```
 
-### Option 2: Python (Simpler Setup)
+## Usage
 
 ```python
-from Signal_Augmentations.addSignals import combine_signals
-from Signal_Augmentations.dropSignals import separate_signals
-from wav_IO import load_wav, save_wav
+import rust_signals
+import numpy as np
 
-# Load signals
-base, sr = load_wav("test-signals/inputSignals/1-19840-A-36.wav")
-add, _ = load_wav("test-signals/inputSignals/1-9887-A-49.wav")
-
-# Mix signals
-result = combine_signals(base, add, "mix", position=50000, mix_balance=0.5)
-save_wav("output.wav", result, sr)
-```
-
-## Testing
-
-```bash
-# Test Rust implementation
-python test_rust_signals.py
-```
-
-## Project Structure
-
-```
-Haptic-Dataset-Pipeline/
-├── rust-signals/              # Rust implementation (fast, production-ready)
-│   ├── src/
-│   │   ├── lib.rs            # Python bindings
-│   │   ├── wav_io.rs         # WAV file I/O
-│   │   ├── signal_ops.rs     # Signal processing
-│   │   └── types.rs          # Operation types
-│   ├── Cargo.toml
-│   └── pyproject.toml
-├── Signal-Augmentations/      # Python implementation (reference)
-│   ├── addSignals.py         # Combine operations
-│   └── dropSignals.py        # Separate operations
-├── wav_IO.py                  # Python WAV utilities
-├── test-signals/              # Test data
-│   ├── inputSignals/
-│   └── outputSignals/
-└── test_rust_signals.py       # Test suite
+# Load a signal (16-bit PCM)
+signal = np.array([...], dtype=np.int16)
 ```
 
 ## Operations
 
-### Combine Signals
+### Signal Combining
 
-**Mix** - Weighted blend of two signals:
-```python
-# Rust
-rust_signals.combine_signals_from_files(
-    base_path="base.wav",
-    add_path="add.wav",
-    output_path="mixed.wav",
-    position=10000,
-    operation="mix",
-    mix_balance=0.3  # 70% base, 30% add
-)
+| Function | Parameters | Description |
+|----------|------------|-------------|
+| `mix_signals` | `base, add, position, mix_balance=0.5, add_offset=0, normalize=False` | Weighted blend of two signals |
+| `insert_signal` | `base, add, position, add_offset=0` | Insert signal at position (expands length) |
+| `replace_signal` | `base, add, position, add_offset=0` | Overwrite samples at position |
 
-# Python
-result = combine_signals(base, add, "mix", 10000, mix_balance=0.3)
-```
+### Signal Separating
 
-**Insert** - Concatenate signals:
-```python
-# Rust
-rust_signals.combine_signals_from_files(
-    base_path="base.wav",
-    add_path="add.wav",
-    output_path="inserted.wav",
-    position=5000,
-    operation="insert"
-)
+| Function | Parameters | Description |
+|----------|------------|-------------|
+| `unmix_signal` | `combined, signal, position, mix_balance=0.5` | Reverse a mix operation |
+| `remove_signal` | `combined, signal, position` | Reverse an insert operation |
 
-# Python
-result = combine_signals(base, add, "insert", 5000)
-```
+### Signal Processing
 
-### Separate Signals
+| Function | Parameters | Description |
+|----------|------------|-------------|
+| `butterworth_lowpass` | `signal, cutoff_hz, sample_rate=44100, resonance=1.0` | Biquad lowpass filter |
+| `add_noise` | `signal, noise_level=0.1` | Add white noise (0.0-1.0) |
+| `roughen_signal` | `signal, phase_shift=5, intensity=0.5` | Add texture via phase-shifted copy |
+| `scale_amplitude` | `signal, factor` | Scale amplitude (>1 louder, <1 quieter) |
+| `normalize_signal` | `signal, target_peak=None` | Normalize to peak (default: 32767) |
+| `mask_signal` | `signal, start=None, length, mask_value=0` | Silence a portion of signal |
+| `downsample_signal` | `signal, factor` | Reduce resolution by factor |
 
-**Unmix** - Reverse a mix operation:
-```python
-# Rust
-rust_signals.separate_signals_from_files(
-    combined_path="mixed.wav",
-    signal_path="add.wav",
-    output_path="recovered.wav",
-    position=10000,
-    operation="unmix",
-    mix_balance=0.3  # Must match original mix
-)
+### File-Based Convenience
 
-# Python
-result = separate_signals(mixed, add, "unmix", 10000, mix_balance=0.3)
-```
+| Function | Parameters |
+|----------|------------|
+| `combine_signals_from_files` | `base_path, add_path, output_path, position, operation, mix_balance=0.5, add_offset=0, normalize=False` |
+| `separate_signals_from_files` | `combined_path, signal_path, output_path, position, operation, mix_balance=0.5` |
 
-**Remove** - Reverse an insert operation:
-```python
-# Rust
-rust_signals.separate_signals_from_files(
-    combined_path="inserted.wav",
-    signal_path="add.wav",
-    output_path="recovered.wav",
-    position=5000,
-    operation="remove"
-)
+### Batch Processing (Parallel)
 
-# Python
-result = separate_signals(inserted, add, "remove", 5000)
-```
+| Function | Parameters |
+|----------|------------|
+| `batch_mix_files` | `file_pairs, position, mix_balance=0.5, add_offset=0, normalize=False, num_threads=None` |
+| `batch_insert_files` | `file_pairs, position, add_offset=0, num_threads=None` |
+| `batch_replace_files` | `file_pairs, position, add_offset=0, num_threads=None` |
+| `batch_unmix_files` | `file_pairs, position, mix_balance=0.5, num_threads=None` |
+| `batch_remove_files` | `file_pairs, position, num_threads=None` |
 
-## Performance
-
-Rust implementation performance vs Python:
-- Small signals (<1MB): **10-50x faster**
-- Large signals (>10MB): **50-100x faster**
-- Zero-copy operations where possible
-- Efficient memory management
-
-## Requirements
-
-### Rust Version
-- Rust toolchain (latest stable)
-- Python 3.8+
-- maturin
-
-### Python Version
-- Python 3.8+
-- NumPy
-- SciPy (optional)
-
-## Use Cases
-
-- **Data Augmentation**: Generate synthetic training data for haptic ML models
-- **Signal Analysis**: Study effects of signal mixing on haptic perception
-- **Dataset Generation**: Create large-scale augmented haptic datasets efficiently
-- **Research**: Experiment with different augmentation strategies
-
-## Future Extensions
-
-The enum-based architecture makes it easy to add new operations:
-- Crossfade
-- Time-stretch
-- Pitch-shift
-- Noise injection
-- Frequency filtering
-
-## Acknowledgments
-
-Based on AUDIT research methodology, adapted for haptic signal processing.
+`file_pairs` format: `[(base_path, add_path, output_path), ...]`

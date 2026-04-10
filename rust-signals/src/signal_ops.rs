@@ -147,52 +147,6 @@ pub fn downsample_signal(signal: &[i16], factor: usize) -> Vec<i16> {
     signal.iter().step_by(factor).copied().collect()
 }
 
-/// Low-pass filter with cutoff frequency
-/// cutoff: normalized frequency (0.0 to 0.5)
-///   - 0.0 = DC only
-///   - 0.5 = Nyquist (no filtering)
-pub fn lowpass_filter(signal: &[i16], cutoff: f32) -> Vec<i16> {
-    if signal.is_empty() || cutoff >= 0.5 {
-        return signal.to_vec();
-    }
-
-    // Convert cutoff to alpha coefficient
-    let alpha = 1.0 - (-2.0 * std::f32::consts::PI * cutoff).exp();
-
-    let mut result = Vec::with_capacity(signal.len());
-    let mut prev = signal[0] as f32;
-
-    for &sample in signal {
-        let filtered = alpha * sample as f32 + (1.0 - alpha) * prev;
-        prev = filtered;
-        result.push(filtered as i16);
-    }
-
-    result
-}
-
-/// Smooth signal using moving average (noise reduction)
-/// window_size: number of samples to average (larger = more smoothing)
-pub fn smooth_signal(signal: &[i16], window_size: usize) -> Vec<i16> {
-    if signal.is_empty() || window_size <= 1 {
-        return signal.to_vec();
-    }
-
-    let half_window = window_size / 2;
-    let mut result = Vec::with_capacity(signal.len());
-
-    for i in 0..signal.len() {
-        let start = i.saturating_sub(half_window);
-        let end = (i + half_window + 1).min(signal.len());
-
-        let sum: i32 = signal[start..end].iter().map(|&x| x as i32).sum();
-        let avg = sum / (end - start) as i32;
-        result.push(avg as i16);
-    }
-
-    result
-}
-
 /// Add white noise to signal
 /// noise_level: amplitude of noise relative to signal (0.0 to 1.0)
 ///   - 0.1 = subtle noise (10% of max amplitude)

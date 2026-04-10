@@ -159,40 +159,6 @@ fn downsample_signal<'py>(
     Ok(PyArray1::from_vec_bound(py, result))
 }
 
-/// Low-pass filter with cutoff frequency
-/// cutoff: normalized frequency (0.0 to 0.5, fraction of sample rate)
-#[pyfunction]
-#[pyo3(signature = (signal, cutoff=0.1))]
-fn lowpass_filter<'py>(
-    py: Python<'py>,
-    signal: PyReadonlyArray1<'py, i16>,
-    cutoff: f32,
-) -> PyResult<Bound<'py, PyArray1<i16>>> {
-    let signal_slice = signal.as_slice()
-        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
-
-    let result = signal_ops::lowpass_filter(signal_slice, cutoff);
-
-    Ok(PyArray1::from_vec_bound(py, result))
-}
-
-/// Smooth signal using moving average (noise reduction)
-/// window_size: number of samples to average (larger = more smoothing)
-#[pyfunction]
-#[pyo3(signature = (signal, window_size=5))]
-fn smooth_signal<'py>(
-    py: Python<'py>,
-    signal: PyReadonlyArray1<'py, i16>,
-    window_size: usize,
-) -> PyResult<Bound<'py, PyArray1<i16>>> {
-    let signal_slice = signal.as_slice()
-        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
-
-    let result = signal_ops::smooth_signal(signal_slice, window_size);
-
-    Ok(PyArray1::from_vec_bound(py, result))
-}
-
 /// Add white noise to signal
 /// noise_level: amplitude of noise (0.0 to 1.0, relative to max amplitude)
 #[pyfunction]
@@ -470,8 +436,6 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Training data generation (for AI training pairs)
     m.add_function(wrap_pyfunction!(mask_signal, m)?)?;
     m.add_function(wrap_pyfunction!(downsample_signal, m)?)?;
-    m.add_function(wrap_pyfunction!(lowpass_filter, m)?)?;
-    m.add_function(wrap_pyfunction!(smooth_signal, m)?)?;
     m.add_function(wrap_pyfunction!(add_noise, m)?)?;
     m.add_function(wrap_pyfunction!(scale_amplitude, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_signal, m)?)?;

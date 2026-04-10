@@ -13,10 +13,6 @@ OPERATIONS = {
         "description": "Add white noise to make the haptic signal feel rougher/grainier",
         "seed_prompts": ["make it rougher", "add texture", "add grit"]
     },
-    "smooth_signal": {
-        "description": "Apply moving average smoothing to reduce harshness",
-        "seed_prompts": ["smooth it out", "make it softer", "reduce harshness"]
-    },
     "butterworth_lowpass": {
         "description": "Apply lowpass filter to remove harsh high frequencies",
         "seed_prompts": ["remove harsh frequencies", "make it warmer", "less sharp"]
@@ -48,6 +44,14 @@ OPERATIONS = {
     "downsample": {
         "description": "Reduce the resolution/quality of the signal",
         "seed_prompts": ["lower quality", "reduce resolution", "coarser samples"]
+    },
+    "roughen_signal": {
+        "description": "Add texture/roughness by layering a phase-shifted copy on top",
+        "seed_prompts": ["make it rougher", "add texture", "make it grittier"]
+    },
+    "normalize_signal": {
+        "description": "Normalize the signal to full dynamic range",
+        "seed_prompts": ["normalize it", "maximize volume", "normalize the amplitude"]
     }
 }
 
