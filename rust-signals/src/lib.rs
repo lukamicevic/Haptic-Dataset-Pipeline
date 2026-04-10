@@ -210,6 +210,40 @@ fn add_noise<'py>(
     Ok(PyArray1::from_vec_bound(py, result))
 }
 
+/// Scale signal amplitude by a factor
+/// factor > 1.0 = increase (louder), factor < 1.0 = decrease (quieter)
+#[pyfunction]
+#[pyo3(signature = (signal, factor))]
+fn scale_amplitude<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, i16>,
+    factor: f32,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let signal_slice = signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+
+    let result = signal_ops::scale_amplitude(signal_slice, factor);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
+
+/// Normalize signal to target peak amplitude
+/// If target_peak is None, normalizes to full dynamic range (32767)
+#[pyfunction]
+#[pyo3(signature = (signal, target_peak=None))]
+fn normalize_signal<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, i16>,
+    target_peak: Option<i16>,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let signal_slice = signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+
+    let result = signal_ops::normalize_signal(signal_slice, target_peak);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
+
 /// Biquad Butterworth lowpass filter (matches dsp.js IIRFilter)
 /// cutoff_hz: cutoff frequency in Hz (e.g., 1000.0)
 /// sample_rate: sample rate in Hz (e.g., 44100)
@@ -420,6 +454,8 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(lowpass_filter, m)?)?;
     m.add_function(wrap_pyfunction!(smooth_signal, m)?)?;
     m.add_function(wrap_pyfunction!(add_noise, m)?)?;
+    m.add_function(wrap_pyfunction!(scale_amplitude, m)?)?;
+    m.add_function(wrap_pyfunction!(normalize_signal, m)?)?;
     m.add_function(wrap_pyfunction!(butterworth_lowpass, m)?)?;
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;

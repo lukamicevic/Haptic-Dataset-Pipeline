@@ -279,3 +279,40 @@ pub fn butterworth_lowpass(signal: &[i16], cutoff_hz: f32, sample_rate: u32, res
 
     result
 }
+
+/// Scale signal amplitude by a factor
+/// factor > 1.0 = increase amplitude (louder)
+/// factor < 1.0 = decrease amplitude (quieter)
+/// factor = 1.0 = no change
+pub fn scale_amplitude(signal: &[i16], factor: f32) -> Vec<i16> {
+    if signal.is_empty() || factor == 1.0 {
+        return signal.to_vec();
+    }
+
+    signal.iter()
+        .map(|&sample| {
+            let scaled = sample as f32 * factor;
+            scaled.clamp(-32768.0, 32767.0) as i16
+        })
+        .collect()
+}
+
+/// Normalize signal to a target peak amplitude
+/// If target_peak is None, normalizes to full dynamic range (32767)
+pub fn normalize_signal(signal: &[i16], target_peak: Option<i16>) -> Vec<i16> {
+    if signal.is_empty() {
+        return signal.to_vec();
+    }
+
+    let current_max = signal.iter().map(|&x| x.abs()).max().unwrap_or(0);
+    if current_max == 0 {
+        return signal.to_vec();
+    }
+
+    let target = target_peak.unwrap_or(i16::MAX);
+    let scale = target as f32 / current_max as f32;
+
+    signal.iter()
+        .map(|&x| (x as f32 * scale).clamp(-32768.0, 32767.0) as i16)
+        .collect()
+}
