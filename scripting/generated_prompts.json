@@ -1,0 +1,178 @@
+{
+  "add_noise": {
+    "description": "Add white noise to make the haptic signal feel rougher/grainier",
+    "prompts": [
+      "enhance the roughness of the haptic signal.",
+      "make the haptic signal feel more textured.",
+      "make it rougher",
+      "add grain to the haptic signal.",
+      "enhance the haptic signal with white noise.",
+      "add grit",
+      "modify the haptic signal to be more grainy.",
+      "integrate white noise into the signal.",
+      "add texture",
+      "introduce white noise to the signal.",
+      "make the haptic signal feel rough.",
+      "add noise to make it feel rougher.",
+      "add noise to the haptic signal."
+    ]
+  },
+  "smooth_signal": {
+    "description": "Apply moving average smoothing to reduce harshness",
+    "prompts": [
+      "average smooth the signal",
+      "make it softer",
+      "reduce signal harshness",
+      "smooth out the rough edges",
+      "soften the signal",
+      "smooth it out",
+      "reduce harsh vibrations",
+      "apply average smoothing",
+      "reduce signal sharpness",
+      "smooth the haptic signal",
+      "smooth the data",
+      "eliminate harshness",
+      "reduce harshness"
+    ]
+  },
+  "butterworth_lowpass": {
+    "description": "Apply lowpass filter to remove harsh high frequencies",
+    "prompts": [
+      "make it warmer",
+      "use a lowpass filter to process my signal.",
+      "apply a lowpass filter to remove harsh frequencies.",
+      "apply a lowpass filter to clean my signal.",
+      "remove harsh frequencies",
+      "use a lowpass filter on my haptic data.",
+      "apply a lowpass filter to reduce high frequencies.",
+      "apply a lowpass filter to my haptic signal.",
+      "smooth my haptic signal with a lowpass filter.",
+      "less sharp",
+      "smooth out my haptic signal by filtering."
+    ]
+  },
+  "insert_signal": {
+    "description": "Insert a haptic pulse or tap at a position",
+    "prompts": [
+      "add a pulse",
+      "insert a tap",
+      "add a sensation at the spot.",
+      "enter a haptic bump.",
+      "add a signal at the point.",
+      "put a haptic event.",
+      "add a click",
+      "make a tap at this location.",
+      "place a pulse at the mark.",
+      "insert a trigger at the position.",
+      "put a signal here.",
+      "insert a vibration.",
+      "insert a touch here."
+    ]
+  },
+  "remove_signal": {
+    "description": "Remove a section of the haptic signal",
+    "prompts": [
+      "remove the section",
+      "eliminate the haptic region",
+      "get rid of the signal chunk",
+      "remove the unwanted haptic portion",
+      "delete the signal segment",
+      "take out the haptic segment",
+      "delete this part",
+      "cut away the haptic section",
+      "remove the unwanted part",
+      "eliminate the haptic section",
+      "cut out the unwanted haptic part",
+      "cut out the middle"
+    ]
+  },
+  "mix_signals": {
+    "description": "Blend/overlay another haptic signal",
+    "prompts": [
+      "combine with",
+      "mix these two signals together.",
+      "blend with",
+      "overlay one signal onto the other.",
+      "combine these signals via blending.",
+      "blend signals for a cohesive sound.",
+      "layer the signals for a harmonious effect.",
+      "overlay",
+      "mix these signals to create a blend.",
+      "overlay the signals for a combined effect.",
+      "mix them by layering them.",
+      "overlay one signal on top of the other.",
+      "blend the signals seamlessly."
+    ]
+  },
+  "mask_signal": {
+    "description": "Mute/silence a portion of the signal",
+    "prompts": [
+      "mute this section",
+      "mask this section of the signal.",
+      "silence the sound in this range.",
+      "disable this segment of the signal.",
+      "make this signal go quiet.",
+      "silence the middle",
+      "hide the sound in this part.",
+      "mute the signal in this location.",
+      "turn off this part of the sound.",
+      "silence the audio in this area.",
+      "disable this portion of the audio.",
+      "mask the audio in this area.",
+      "blank out"
+    ]
+  },
+  "amplitude_increase": {
+    "description": "Make the haptic vibration stronger/more intense",
+    "prompts": [
+      "make it stronger",
+      "increase the vibration power.",
+      "enhance the haptic force.",
+      "increase intensity",
+      "increase the haptic intensity.",
+      "make the vibration stronger.",
+      "increase the intensity of the haptic signal.",
+      "make the haptic vibration more intense.",
+      "boost the amplitude.",
+      "more powerful",
+      "boost the amplitude level.",
+      "enhance the haptic vibration.",
+      "strengthen the haptic signal."
+    ]
+  },
+  "amplitude_decrease": {
+    "description": "Make the haptic vibration weaker/more subtle",
+    "prompts": [
+      "weaken the sensation",
+      "smoothen the effect",
+      "reduce intensity",
+      "dim the haptic signal",
+      "reduce the intensity",
+      "decrease the strength",
+      "soften the sensation",
+      "make it less bouncy",
+      "reduce the amplitude",
+      "lower the vibration level",
+      "make it subtle",
+      "softer vibration",
+      "lessen the vibration"
+    ]
+  },
+  "downsample": {
+    "description": "Reduce the resolution/quality of the signal",
+    "prompts": [
+      "let's downsample the signal.",
+      "lower the haptic detail.",
+      "reduce the haptic quality.",
+      "coarser samples",
+      "decrease the haptic precision.",
+      "reduce resolution",
+      "reduce the haptic quality level.",
+      "lower quality",
+      "downsample the haptic data.",
+      "lower the haptic resolution.",
+      "simplify the haptic signal.",
+      "downsample the haptic sample rate."
+    ]
+  }
+}

@@ -18,6 +18,9 @@ outputs/
 runs/
 checkpoints/
 
+# LLM models (large binaries)
+models/
+
 # Rust
 rust-signals/target/
 Cargo.lock
