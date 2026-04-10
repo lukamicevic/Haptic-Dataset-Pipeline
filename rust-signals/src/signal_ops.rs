@@ -146,3 +146,136 @@ pub fn downsample_signal(signal: &[i16], factor: usize) -> Vec<i16> {
     }
     signal.iter().step_by(factor).copied().collect()
 }
+
+/// Low-pass filter with cutoff frequency
+/// cutoff: normalized frequency (0.0 to 0.5)
+///   - 0.0 = DC only
+///   - 0.5 = Nyquist (no filtering)
+pub fn lowpass_filter(signal: &[i16], cutoff: f32) -> Vec<i16> {
+    if signal.is_empty() || cutoff >= 0.5 {
+        return signal.to_vec();
+    }
+
+    // Convert cutoff to alpha coefficient
+    let alpha = 1.0 - (-2.0 * std::f32::consts::PI * cutoff).exp();
+
+    let mut result = Vec::with_capacity(signal.len());
+    let mut prev = signal[0] as f32;
+
+    for &sample in signal {
+        let filtered = alpha * sample as f32 + (1.0 - alpha) * prev;
+        prev = filtered;
+        result.push(filtered as i16);
+    }
+
+    result
+}
+
+/// Smooth signal using moving average (noise reduction)
+/// window_size: number of samples to average (larger = more smoothing)
+pub fn smooth_signal(signal: &[i16], window_size: usize) -> Vec<i16> {
+    if signal.is_empty() || window_size <= 1 {
+        return signal.to_vec();
+    }
+
+    let half_window = window_size / 2;
+    let mut result = Vec::with_capacity(signal.len());
+
+    for i in 0..signal.len() {
+        let start = i.saturating_sub(half_window);
+        let end = (i + half_window + 1).min(signal.len());
+
+        let sum: i32 = signal[start..end].iter().map(|&x| x as i32).sum();
+        let avg = sum / (end - start) as i32;
+        result.push(avg as i16);
+    }
+
+    result
+}
+
+/// Add white noise to signal
+/// noise_level: amplitude of noise relative to signal (0.0 to 1.0)
+///   - 0.1 = subtle noise (10% of max amplitude)
+///   - 0.5 = moderate noise
+///   - 1.0 = full scale noise
+pub fn add_noise(signal: &[i16], noise_level: f32) -> Vec<i16> {
+    if signal.is_empty() || noise_level <= 0.0 {
+        return signal.to_vec();
+    }
+
+    let mut rng = rand::thread_rng();
+
+    // Scale noise relative to i16 max (32767)
+    let noise_amplitude = (noise_level * 32767.0).min(32767.0);
+
+    signal.iter()
+        .map(|&sample| {
+            // Generate white noise: uniform random in [-1, 1] * amplitude
+            let noise = (rng.gen::<f32>() * 2.0 - 1.0) * noise_amplitude;
+            let noisy = sample as f32 + noise;
+            noisy.clamp(-32768.0, 32767.0) as i16
+        })
+        .collect()
+}
+
+/// Biquad Butterworth lowpass filter (matches dsp.js IIRFilter)
+/// cutoff_hz: cutoff frequency in Hz (e.g., 1000.0 for 1kHz)
+/// sample_rate: sample rate in Hz (e.g., 44100)
+/// resonance: Q factor (1.0 = standard Butterworth, higher = sharper cutoff)
+pub fn butterworth_lowpass(signal: &[i16], cutoff_hz: f32, sample_rate: u32, resonance: f32) -> Vec<i16> {
+    if signal.is_empty() {
+        return signal.to_vec();
+    }
+
+    let sample_rate_f = sample_rate as f32;
+
+    // Clamp cutoff to valid range (must be below Nyquist)
+    let cutoff = cutoff_hz.min(sample_rate_f * 0.5 - 1.0).max(1.0);
+    let q = resonance.max(0.001); // Avoid division by zero
+
+    // Biquad coefficients for lowpass
+    let omega = 2.0 * std::f32::consts::PI * cutoff / sample_rate_f;
+    let sin_omega = omega.sin();
+    let cos_omega = omega.cos();
+    let alpha = sin_omega / (2.0 * q);
+
+    // Lowpass coefficients (before normalization)
+    let b0 = (1.0 - cos_omega) / 2.0;
+    let b1 = 1.0 - cos_omega;
+    let b2 = (1.0 - cos_omega) / 2.0;
+    let a0 = 1.0 + alpha;
+    let a1 = -2.0 * cos_omega;
+    let a2 = 1.0 - alpha;
+
+    // Normalize by a0
+    let b0 = b0 / a0;
+    let b1 = b1 / a0;
+    let b2 = b2 / a0;
+    let a1 = a1 / a0;
+    let a2 = a2 / a0;
+
+    // Filter state (previous samples)
+    let mut x1: f32 = 0.0; // x[n-1]
+    let mut x2: f32 = 0.0; // x[n-2]
+    let mut y1: f32 = 0.0; // y[n-1]
+    let mut y2: f32 = 0.0; // y[n-2]
+
+    let mut result = Vec::with_capacity(signal.len());
+
+    for &sample in signal {
+        let x0 = sample as f32;
+
+        // Biquad difference equation: y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+        let y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+
+        // Shift state
+        x2 = x1;
+        x1 = x0;
+        y2 = y1;
+        y1 = y0;
+
+        result.push(y0.clamp(-32768.0, 32767.0) as i16);
+    }
+
+    result
+}
