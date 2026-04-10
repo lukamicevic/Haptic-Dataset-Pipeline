@@ -316,3 +316,35 @@ pub fn normalize_signal(signal: &[i16], target_peak: Option<i16>) -> Vec<i16> {
         .map(|&x| (x as f32 * scale).clamp(-32768.0, 32767.0) as i16)
         .collect()
 }
+
+/// Make signal feel rougher by adding a phase-shifted copy on top
+/// phase_shift: number of samples to shift (creates comb filter effect)
+///   - Small shifts (1-10 samples) = subtle texture
+///   - Larger shifts (10-100 samples) = more pronounced roughness
+/// intensity: how much of the shifted signal to add (0.0 to 1.0)
+///   - 0.0 = no change
+///   - 0.5 = add half of shifted signal
+///   - 1.0 = add full shifted signal (doubles amplitude where aligned)
+pub fn roughen_signal(signal: &[i16], phase_shift: usize, intensity: f32) -> Vec<i16> {
+    if signal.is_empty() || phase_shift == 0 || intensity <= 0.0 {
+        return signal.to_vec();
+    }
+
+    let intensity = intensity.clamp(0.0, 1.0);
+
+    signal.iter()
+        .enumerate()
+        .map(|(i, &sample)| {
+            // Get phase-shifted sample (use zero for out-of-bounds)
+            let shifted_sample = if i >= phase_shift {
+                signal[i - phase_shift]
+            } else {
+                0
+            };
+
+            // Add the shifted signal on top of the original
+            let result = sample as f32 + (shifted_sample as f32 * intensity);
+            result.clamp(-32768.0, 32767.0) as i16
+        })
+        .collect()
+}

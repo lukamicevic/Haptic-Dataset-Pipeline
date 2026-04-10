@@ -265,6 +265,25 @@ fn butterworth_lowpass<'py>(
     Ok(PyArray1::from_vec_bound(py, result))
 }
 
+/// Make signal feel rougher by adding phase-shifted copy on top
+/// phase_shift: samples to shift (1-10 = subtle, 10-100 = pronounced)
+/// intensity: how much of shifted signal to add (0.0 to 1.0)
+#[pyfunction]
+#[pyo3(signature = (signal, phase_shift=5, intensity=0.5))]
+fn roughen_signal<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, i16>,
+    phase_shift: usize,
+    intensity: f32,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let signal_slice = signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read signal array: {}", e)))?;
+
+    let result = signal_ops::roughen_signal(signal_slice, phase_shift, intensity);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
+
 // =============================================================================
 // File-based functions (convenience API)
 // =============================================================================
@@ -457,6 +476,7 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scale_amplitude, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_signal, m)?)?;
     m.add_function(wrap_pyfunction!(butterworth_lowpass, m)?)?;
+    m.add_function(wrap_pyfunction!(roughen_signal, m)?)?;
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;
     m.add_function(wrap_pyfunction!(separate_signals_from_files, m)?)?;
