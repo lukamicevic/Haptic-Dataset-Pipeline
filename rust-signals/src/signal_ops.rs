@@ -1,4 +1,5 @@
 use crate::types::{CombineOp, SeparateOp};
+use rustfft::{FftPlanner, num_complex::Complex};
 
 pub fn combine_signals(
     base: &[i16],
@@ -301,4 +302,165 @@ pub fn roughen_signal(signal: &[i16], phase_shift: usize, intensity: f32) -> Vec
             result.clamp(-32768.0, 32767.0) as i16
         })
         .collect()
+}
+
+// =============================================================================
+// Texture Transfer - FFT-based operations
+// =============================================================================
+
+/// Biquad Butterworth highpass filter
+/// cutoff_hz: cutoff frequency in Hz
+/// sample_rate: sample rate in Hz
+/// resonance: Q factor (1.0 = standard Butterworth)
+pub fn butterworth_highpass(signal: &[i16], cutoff_hz: f32, sample_rate: u32, resonance: f32) -> Vec<i16> {
+    if signal.is_empty() {
+        return signal.to_vec();
+    }
+
+    let sample_rate_f = sample_rate as f32;
+    let cutoff = cutoff_hz.min(sample_rate_f * 0.5 - 1.0).max(1.0);
+    let q = resonance.max(0.001);
+
+    // Biquad coefficients for highpass
+    let omega = 2.0 * std::f32::consts::PI * cutoff / sample_rate_f;
+    let sin_omega = omega.sin();
+    let cos_omega = omega.cos();
+    let alpha = sin_omega / (2.0 * q);
+
+    // Highpass coefficients (before normalization)
+    let b0 = (1.0 + cos_omega) / 2.0;
+    let b1 = -(1.0 + cos_omega);
+    let b2 = (1.0 + cos_omega) / 2.0;
+    let a0 = 1.0 + alpha;
+    let a1 = -2.0 * cos_omega;
+    let a2 = 1.0 - alpha;
+
+    // Normalize by a0
+    let b0 = b0 / a0;
+    let b1 = b1 / a0;
+    let b2 = b2 / a0;
+    let a1 = a1 / a0;
+    let a2 = a2 / a0;
+
+    // Filter state
+    let mut x1: f32 = 0.0;
+    let mut x2: f32 = 0.0;
+    let mut y1: f32 = 0.0;
+    let mut y2: f32 = 0.0;
+
+    let mut result = Vec::with_capacity(signal.len());
+
+    for &sample in signal {
+        let x0 = sample as f32;
+        let y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+
+        x2 = x1;
+        x1 = x0;
+        y2 = y1;
+        y1 = y0;
+
+        result.push(y0.clamp(-32768.0, 32767.0) as i16);
+    }
+
+    result
+}
+
+/// Compute amplitude envelope using Hilbert transform (FFT-based)
+/// Returns the instantaneous amplitude (envelope) of the signal
+fn hilbert_envelope(signal: &[i16]) -> Vec<f32> {
+    if signal.is_empty() {
+        return Vec::new();
+    }
+
+    let n = signal.len();
+
+    // Pad to power of 2 for FFT efficiency
+    let fft_len = n.next_power_of_two();
+
+    // Convert to complex and pad
+    let mut buffer: Vec<Complex<f32>> = signal
+        .iter()
+        .map(|&s| Complex::new(s as f32, 0.0))
+        .collect();
+    buffer.resize(fft_len, Complex::new(0.0, 0.0));
+
+    // Create FFT planner
+    let mut planner = FftPlanner::new();
+    let fft = planner.plan_fft_forward(fft_len);
+    let ifft = planner.plan_fft_inverse(fft_len);
+
+    // Forward FFT
+    fft.process(&mut buffer);
+
+    // Apply Hilbert transform in frequency domain:
+    // - DC component (index 0) stays the same
+    // - Positive frequencies (1 to N/2-1) are doubled
+    // - Nyquist (N/2) stays the same
+    // - Negative frequencies (N/2+1 to N-1) are zeroed
+    let half = fft_len / 2;
+
+    // Double positive frequencies
+    for i in 1..half {
+        buffer[i] = buffer[i] * 2.0;
+    }
+    // Zero negative frequencies
+    for i in (half + 1)..fft_len {
+        buffer[i] = Complex::new(0.0, 0.0);
+    }
+
+    // Inverse FFT
+    ifft.process(&mut buffer);
+
+    // Normalize and compute magnitude (envelope)
+    let scale = 1.0 / fft_len as f32;
+    buffer[..n]
+        .iter()
+        .map(|c| (c * scale).norm())
+        .collect()
+}
+
+/// Transfer texture from one signal to another
+///
+/// Takes the high-frequency texture (>50Hz) from texture_signal and applies it
+/// to the amplitude envelope (<15Hz) extracted from base_signal.
+///
+/// texture_signal: source of high-frequency texture/roughness
+/// base_signal: source of amplitude envelope (overall shape)
+/// sample_rate: sample rate in Hz (e.g., 44100)
+pub fn transfer_texture(
+    texture_signal: &[i16],
+    base_signal: &[i16],
+    sample_rate: u32,
+) -> Vec<i16> {
+    if texture_signal.is_empty() || base_signal.is_empty() {
+        return Vec::new();
+    }
+
+    // Step 1: Extract high-frequency texture from texture_signal (>50Hz)
+    let texture = butterworth_highpass(texture_signal, 50.0, sample_rate, 1.0);
+
+    // Normalize texture to [-1, 1] range for multiplication
+    let texture_max = texture.iter().map(|&x| x.abs()).max().unwrap_or(1) as f32;
+    let texture_normalized: Vec<f32> = texture
+        .iter()
+        .map(|&x| if texture_max > 0.0 { x as f32 / texture_max } else { 0.0 })
+        .collect();
+
+    // Step 2: Extract amplitude envelope from base_signal (<15Hz via lowpass + Hilbert)
+    let base_lowpass = butterworth_lowpass(base_signal, 15.0, sample_rate, 1.0);
+    let envelope = hilbert_envelope(&base_lowpass);
+
+    // Step 3: Multiply texture by envelope
+    // Use the shorter length to handle different signal lengths
+    let output_len = texture_normalized.len().min(envelope.len());
+
+    let result: Vec<i16> = (0..output_len)
+        .map(|i| {
+            let sample = texture_normalized[i] * envelope[i];
+            sample.clamp(-32768.0, 32767.0) as i16
+        })
+        .collect();
+
+    // Normalize output to reasonable amplitude
+    normalize_signal(&result, None)
 }

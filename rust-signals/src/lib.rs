@@ -250,6 +250,27 @@ fn roughen_signal<'py>(
     Ok(PyArray1::from_vec_bound(py, result))
 }
 
+/// Transfer texture from one signal to another
+/// Takes high-frequency texture (>50Hz) from texture_signal
+/// and applies it to amplitude envelope (<15Hz) from base_signal
+#[pyfunction]
+#[pyo3(signature = (texture_signal, base_signal, sample_rate=44100))]
+fn transfer_texture<'py>(
+    py: Python<'py>,
+    texture_signal: PyReadonlyArray1<'py, i16>,
+    base_signal: PyReadonlyArray1<'py, i16>,
+    sample_rate: u32,
+) -> PyResult<Bound<'py, PyArray1<i16>>> {
+    let texture_slice = texture_signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read texture signal: {}", e)))?;
+    let base_slice = base_signal.as_slice()
+        .map_err(|e| PyValueError::new_err(format!("Failed to read base signal: {}", e)))?;
+
+    let result = signal_ops::transfer_texture(texture_slice, base_slice, sample_rate);
+
+    Ok(PyArray1::from_vec_bound(py, result))
+}
+
 // =============================================================================
 // File-based functions (convenience API)
 // =============================================================================
@@ -422,6 +443,119 @@ fn batch_replace_files(
 }
 
 // =============================================================================
+// Batch Single-Signal Operations (Rayon parallel)
+// =============================================================================
+
+/// Batch add noise to multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, noise_level=0.1, num_threads=None))]
+fn batch_add_noise(
+    file_pairs: Vec<(String, String)>,
+    noise_level: f32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_add_noise(&file_pairs, noise_level, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch butterworth lowpass filter on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, cutoff_hz, sample_rate=44100, resonance=1.0, num_threads=None))]
+fn batch_butterworth_lowpass(
+    file_pairs: Vec<(String, String)>,
+    cutoff_hz: f32,
+    sample_rate: u32,
+    resonance: f32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_butterworth_lowpass(&file_pairs, cutoff_hz, sample_rate, resonance, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch mask signal on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, length, mask_value=0, num_threads=None))]
+fn batch_mask_signal(
+    file_pairs: Vec<(String, String)>,
+    length: usize,
+    mask_value: i16,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_mask_signal(&file_pairs, length, mask_value, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch downsample signal on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, factor, num_threads=None))]
+fn batch_downsample_signal(
+    file_pairs: Vec<(String, String)>,
+    factor: usize,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_downsample_signal(&file_pairs, factor, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch scale amplitude on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, factor, num_threads=None))]
+fn batch_scale_amplitude(
+    file_pairs: Vec<(String, String)>,
+    factor: f32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_scale_amplitude(&file_pairs, factor, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch normalize signal on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, target_peak=None, num_threads=None))]
+fn batch_normalize_signal(
+    file_pairs: Vec<(String, String)>,
+    target_peak: Option<i16>,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_normalize_signal(&file_pairs, target_peak, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+/// Batch roughen signal on multiple files in parallel
+#[pyfunction]
+#[pyo3(signature = (file_pairs, phase_shift=5, intensity=0.5, num_threads=None))]
+fn batch_roughen_signal(
+    file_pairs: Vec<(String, String)>,
+    phase_shift: usize,
+    intensity: f32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_roughen_signal(&file_pairs, phase_shift, intensity, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
+// =============================================================================
 // Python module registration
 // =============================================================================
 
@@ -441,6 +575,7 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normalize_signal, m)?)?;
     m.add_function(wrap_pyfunction!(butterworth_lowpass, m)?)?;
     m.add_function(wrap_pyfunction!(roughen_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(transfer_texture, m)?)?;
     // File-based functions (convenience)
     m.add_function(wrap_pyfunction!(combine_signals_from_files, m)?)?;
     m.add_function(wrap_pyfunction!(separate_signals_from_files, m)?)?;
@@ -450,5 +585,13 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(batch_replace_files, m)?)?;
     m.add_function(wrap_pyfunction!(batch_unmix_files, m)?)?;
     m.add_function(wrap_pyfunction!(batch_remove_files, m)?)?;
+    // Batch single-signal operations
+    m.add_function(wrap_pyfunction!(batch_add_noise, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_butterworth_lowpass, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_mask_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_downsample_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_scale_amplitude, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_normalize_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_roughen_signal, m)?)?;
     Ok(())
 }
