@@ -555,6 +555,22 @@ fn batch_roughen_signal(
         .collect())
 }
 
+/// Batch transfer texture from multiple file pairs in parallel
+/// file_triples: list of (texture_path, base_path, output_path)
+#[pyfunction]
+#[pyo3(signature = (file_triples, sample_rate=44100, num_threads=None))]
+fn batch_transfer_texture(
+    file_triples: Vec<(String, String, String)>,
+    sample_rate: u32,
+    num_threads: Option<usize>,
+) -> PyResult<Vec<(String, bool, Option<String>)>> {
+    let results = batch_ops::batch_transfer_texture(&file_triples, sample_rate, num_threads);
+
+    Ok(results.into_iter()
+        .map(|r| (r.output_path, r.success, r.error))
+        .collect())
+}
+
 // =============================================================================
 // Python module registration
 // =============================================================================
@@ -593,5 +609,6 @@ fn rust_signals(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(batch_scale_amplitude, m)?)?;
     m.add_function(wrap_pyfunction!(batch_normalize_signal, m)?)?;
     m.add_function(wrap_pyfunction!(batch_roughen_signal, m)?)?;
+    m.add_function(wrap_pyfunction!(batch_transfer_texture, m)?)?;
     Ok(())
 }
